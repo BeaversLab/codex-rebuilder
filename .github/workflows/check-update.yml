@@ -1,0 +1,158 @@
+# Check for Codex updates and trigger build
+name: Daily Version Check
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+  # Also run after build completes to update version
+  workflow_run:
+    workflows: ["Build Codex App (Intel)"]
+    types: [completed]
+    branches: ["main", "master"]
+
+jobs:
+  check-update:
+    name: Check for Updates
+    runs-on: macos-15-intel
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          
+      - name: Read current version
+        id: current-version
+        run: |
+          if [ -f version.json ]; then
+            echo "version=$(jq -r '.version' version.json)" >> $GITHUB_OUTPUT
+            echo "build=$(jq -r '.build' version.json)" >> $GITHUB_OUTPUT
+            echo "checked=$(jq -r '.checked' version.json)" >> $GITHUB_OUTPUT
+          else
+            echo "version=none" >> $GITHUB_OUTPUT
+            echo "build=none" >> $GITHUB_OUTPUT
+            echo "checked=none" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Download Codex DMG
+        id: download
+        run: |
+          curl -L -o Codex.dmg "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg"
+          echo "size=$(ls -l Codex.dmg | awk '{print $5}')" >> $GITHUB_OUTPUT
+          
+      - name: Extract DMG
+        run: |
+          # Convert DMG to ISO first
+          brew install dmg2img 2>/dev/null || true
+          dmg2img -i Codex.dmg -o Codex.img
+          
+          # Mount and extract
+          hdiutil attach Codex.img -mountpoint /tmp/codex_mount -nobrowse
+          
+          # Copy app bundle
+          cp -R "/tmp/codex_mount/Codex Installer/Codex.app" ./
+          
+          # Unmount
+          hdiutil detach /tmp/codex_mount
+          
+      - name: Extract version from Info.plist
+        id: new-version
+        run: |
+          # Use PlistBuddy to read Info.plist
+          NEW_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "Codex.app/Contents/Info.plist")
+          NEW_BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "Codex.app/Contents/Info.plist")
+          
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "new_build=$NEW_BUILD" >> $GITHUB_OUTPUT
+          
+          echo "Found version: $NEW_VERSION (build $NEW_BUILD)"
+          
+      - name: Compare versions
+        id: compare
+        run: |
+          CURRENT="${{ steps.current-version.outputs.version }}"
+          NEW="${{ steps.new-version.outputs.new_version }}"
+          CHECKED="${{ steps.current-version.outputs.checked }}"
+          
+          # Calculate days since last check
+          if [ "$CHECKED" != "none" ] && [ -n "$CHECKED" ]; then
+            LAST_CHECKED=$(date -d "$CHECKED" +%s 2>/dev/null || echo "0")
+            NOW=$(date -u +%s)
+            DAYS_SINCE=$(( (NOW - LAST_CHECKED) / 86400 ))
+            echo "days_since_check=$DAYS_SINCE" >> $GITHUB_OUTPUT
+          else
+            echo "days_since_check=999" >> $GITHUB_OUTPUT
+          fi
+          
+          # Determine if we need to refresh (new version OR > 25 days)
+          DAYS="${{ steps.compare.outputs.days_since_check }}"
+          if [ "$CURRENT" = "none" ] || [ "$NEW" != "$CURRENT" ]; then
+            echo "new_version_found=true" >> $GITHUB_OUTPUT
+            echo "::notice::New version detected: $NEW (current: $CURRENT)"
+          elif [ "$DAYS" -ge 25 ]; then
+            echo "new_version_found=refresh" >> $GITHUB_OUTPUT
+            echo "::notice::Refreshing artifact (last checked $DAYS days ago)"
+          else
+            echo "new_version_found=false" >> $GITHUB_OUTPUT
+            echo "::notice::No update needed. Current: $CURRENT (checked $DAYS days ago)"
+          fi
+          
+      - name: Trigger Build Workflow (New Version Only)
+        if: steps.compare.outputs.new_version_found == 'true'
+        run: |
+          gh workflow run build.yml -f is_release=true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Update version.json (only after successful build triggered)
+        if: steps.compare.outputs.new_version_found == 'true'
+        run: |
+          # Only update version.json when new version build is triggered
+          jq --arg version "${{ steps.new-version.outputs.new_version }}" \
+             --arg build "${{ steps.new-version.outputs.new_build }}" \
+             '.version = $version | .build = $build | .checked = "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"' \
+             version.json > version.json.tmp
+          mv version.json.tmp version.json
+          cat version.json
+          
+      - name: Commit version update
+        if: steps.compare.outputs.new_version_found == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add version.json
+          git commit -m "Update version to ${{ steps.new-version.outputs.new_version }}"
+          git push
+          
+      - name: Update version.json (Refresh case - no build needed)
+        if: steps.compare.outputs.new_version_found == 'refresh'
+        run: |
+          # For refresh case, update checked time but keep same version
+          jq --arg checked "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+             '.checked = $checked' \
+             version.json > version.json.tmp
+          mv version.json.tmp version.json
+          cat version.json
+          
+      - name: Commit refresh update
+        if: steps.compare.outputs.new_version_found == 'refresh'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add version.json
+          git commit -m "Refresh version info (checked ${{ steps.current-version.outputs.version }})"
+          git push
+          
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: version-info
+          path: version.json
+          retention-days: 30
+          if-no-files-found: warn
+          
+      - name: Cleanup
+        run: |
+          rm -rf Codex.dmg Codex.img "Codex.app"
