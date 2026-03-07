@@ -1,0 +1,220 @@
+# Check for Codex updates and build + release (single workflow)
+name: Codex Check and Release
+
+permissions:
+  contents: write
+  attestations: write
+  id-token: write
+
+on:
+  schedule:
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+    inputs:
+      release_only:
+        description: 'Skip check, build and release current version only'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  check:
+    name: Check for Updates
+    runs-on: macos-15-intel
+    outputs:
+      need_release: ${{ steps.set_outputs.outputs.need_release }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ref: master
+          persist-credentials: true
+
+      - name: Set need_release (release_only mode)
+        if: github.event_name == 'workflow_dispatch' && inputs.release_only == true
+        id: set_outputs
+        run: echo "need_release=true" >> $GITHUB_OUTPUT
+
+      - name: Read current version
+        if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
+        id: current-version
+        run: |
+          if [ -f version.json ]; then
+            echo "version=$(jq -r '.version' version.json)" >> $GITHUB_OUTPUT
+            echo "build=$(jq -r '.build' version.json)" >> $GITHUB_OUTPUT
+            echo "checked=$(jq -r '.checked' version.json)" >> $GITHUB_OUTPUT
+          else
+            echo "version=none" >> $GITHUB_OUTPUT
+            echo "build=none" >> $GITHUB_OUTPUT
+            echo "checked=none" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download Codex DMG
+        if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
+        run: curl -L -o Codex.dmg "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg"
+
+      - name: Mount DMG and copy Codex.app
+        if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
+        run: |
+          hdiutil attach Codex.dmg -mountpoint /tmp/codex_mount -nobrowse
+          CODEX_APP=$(find /tmp/codex_mount -maxdepth 3 -name "Codex.app" -type d 2>/dev/null | head -1)
+          if [ -z "$CODEX_APP" ]; then
+            echo "::error::Codex.app not found in DMG"
+            ls -laR /tmp/codex_mount
+            hdiutil detach /tmp/codex_mount
+            exit 1
+          fi
+          cp -R "$CODEX_APP" ./
+          hdiutil detach /tmp/codex_mount
+
+      - name: Extract version from Info.plist
+        if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
+        id: new-version
+        run: |
+          INFO_PLIST="Codex.app/Contents/Info.plist"
+          if [ ! -f "$INFO_PLIST" ]; then
+            echo "::error::Info.plist not found at $INFO_PLIST"
+            exit 1
+          fi
+          NEW_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$INFO_PLIST")
+          NEW_BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$INFO_PLIST")
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "new_build=$NEW_BUILD" >> $GITHUB_OUTPUT
+          echo "Found version: $NEW_VERSION (build $NEW_BUILD)"
+
+      - name: Compare versions
+        if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
+        id: compare
+        run: |
+          CURRENT="${{ steps.current-version.outputs.version }}"
+          NEW="${{ steps.new-version.outputs.new_version }}"
+          CHECKED="${{ steps.current-version.outputs.checked }}"
+          if [ "$CHECKED" != "none" ] && [ -n "$CHECKED" ]; then
+            LAST_CHECKED=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$CHECKED" +%s 2>/dev/null || echo "0")
+            NOW=$(date -u +%s)
+            DAYS_SINCE=$(( (NOW - LAST_CHECKED) / 86400 ))
+          else
+            DAYS_SINCE=999
+          fi
+          if [ "$CURRENT" = "none" ] || [ "$NEW" != "$CURRENT" ]; then
+            echo "new_version_found=true" >> $GITHUB_OUTPUT
+            echo "::notice::New version detected: $NEW (current: $CURRENT)"
+          elif [ "$DAYS_SINCE" -ge 25 ]; then
+            echo "new_version_found=refresh" >> $GITHUB_OUTPUT
+          else
+            echo "new_version_found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update version.json (new version)
+        if: (github.event_name != 'workflow_dispatch' || inputs.release_only != true) && steps.compare.outputs.new_version_found == 'true'
+        run: |
+          jq --arg version "${{ steps.new-version.outputs.new_version }}" \
+             --arg build "${{ steps.new-version.outputs.new_build }}" \
+             '.version = $version | .build = $build | .checked = "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"' \
+             version.json > version.json.tmp
+          mv version.json.tmp version.json
+
+      - name: Commit and push (new version)
+        if: (github.event_name != 'workflow_dispatch' || inputs.release_only != true) && steps.compare.outputs.new_version_found == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add version.json
+          git commit -m "[release] Update version to ${{ steps.new-version.outputs.new_version }}"
+          git push
+
+      - name: Update version.json (refresh only)
+        if: (github.event_name != 'workflow_dispatch' || inputs.release_only != true) && steps.compare.outputs.new_version_found == 'refresh'
+        run: |
+          jq --arg checked "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.checked = $checked' version.json > version.json.tmp
+          mv version.json.tmp version.json
+
+      - name: Commit and push (refresh)
+        if: (github.event_name != 'workflow_dispatch' || inputs.release_only != true) && steps.compare.outputs.new_version_found == 'refresh'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add version.json
+          git commit -m "Refresh version info (checked ${{ steps.current-version.outputs.version }})"
+          git push
+
+      - name: Set need_release output (from check)
+        if: (github.event_name != 'workflow_dispatch' || inputs.release_only != true) && steps.compare.outputs.new_version_found == 'true'
+        id: set_outputs
+        run: echo "need_release=true" >> $GITHUB_OUTPUT
+
+      - name: Set need_release false (no new version)
+        if: (github.event_name != 'workflow_dispatch' || inputs.release_only != true) && steps.compare.outputs.new_version_found != 'true'
+        id: set_outputs
+        run: echo "need_release=false" >> $GITHUB_OUTPUT
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf Codex.dmg "Codex.app" 2>/dev/null || true
+
+  build:
+    name: Build and Release
+    needs: check
+    if: needs.check.outputs.need_release == 'true'
+    runs-on: macos-15-intel
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ref: master
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(jq -r '.version' version.json)
+          BUILD=$(jq -r '.build' version.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build=$BUILD" >> $GITHUB_OUTPUT
+
+      - name: Install & Build
+        run: make build
+
+      - name: Move Build Artifact
+        run: |
+          mkdir Codex
+          mv Codex.app Codex
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Codex-build
+          path: Codex
+          retention-days: 30
+
+      - name: Create Release
+        run: |
+          cd Codex
+          zip -r ../Codex-${{ steps.version.outputs.version }}.zip .
+          cd ..
+          cat > release_notes.md << 'NOTES'
+          Auto-built Intel version of Codex ${{ steps.version.outputs.version }} (build ${{ steps.version.outputs.build }})
+
+          This is an **unofficial** Intel build of [Codex](https://openai.com/codex) for Intel Macs.
+
+          ## Usage
+          1. Download the zip
+          2. Extract and run Codex.app
+          3. If you see 'App is damaged', run: `xattr -cr Codex.app`
+
+          ## Version Info
+          - Version: ${{ steps.version.outputs.version }}
+          - Build: ${{ steps.version.outputs.build }}
+          - Target: Intel (x86_64)
+          - Source: macOS ARM64 DMG
+          NOTES
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "Codex Intel v${{ steps.version.outputs.version }}" \
+            --notes-file release_notes.md \
+            Codex-${{ steps.version.outputs.version }}.zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
