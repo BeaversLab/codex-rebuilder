@@ -16,13 +16,13 @@ on:
       is_release:
         description: 'This is a release build'
         required: false
-        default: 'false'
+        default: false
         type: boolean
 
 jobs:
   build:
     name: Build Codex.app
-    runs-on: macos-15-intel # Explicitly use Intel-based macOS runner
+    runs-on: macos-15-intel
     
     steps:
       - name: Checkout Repository
@@ -61,44 +61,33 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.is_release == 'true'
         id: create_release
         run: |
-        if: github.event_name == 'workflow_dispatch' && inputs.is_release == 'true'
-        run: |
           # Create zip archive for release
           cd Codex
           zip -r ../Codex-${{ steps.version.outputs.version }}.zip .
           cd ..
           
-          # Get DMG size
-          SIZE=$(ls -l Codex-${{ steps.version.outputs.version }}.zip | awk '{print $5}')
+          # Create release notes
+          cat > release_notes.md << 'EOF'
+          Auto-built Intel version of Codex ${{ steps.version.outputs.version }} (build ${{ steps.version.outputs.build }})
+
+          This is an **unofficial** Intel build of [Codex](https://openai.com/codex) for Intel Macs.
+
+          ## Usage
+          1. Download the zip
+          2. Extract and run Codex.app
+          3. If you see 'App is damaged', run: `xattr -cr Codex.app`
+
+          ## Version Info
+          - Version: ${{ steps.version.outputs.version }}
+          - Build: ${{ steps.version.outputs.build }}
+          - Target: Intel (x86_64)
+          - Source: macOS ARM64 DMG
+          EOF
           
           # Create GitHub Release
           gh release create "v${{ steps.version.outputs.version }}" \
             --title "Codex Intel v${{ steps.version.outputs.version }}" \
-            --notes "Auto-built Intel version of Codex ${{ steps.version.outputs.version }} (build ${{ steps.version.outputs.build }})
-
-This is an **unofficial** Intel build of [Codex](https://openai.com/codex) for Apple Silicon.
-
-## Usage
-1. Download the zip
-2. Extract and run Codex.app
-3. If you see 'App is damaged', run: \`xattr -cr Codex.app\`
-
-## Version Info
-- Version: ${{ steps.version.outputs.version }}
-- Build: ${{ steps.version.outputs.build }}
-- Target: Intel (x86_64)
-- Source: macOS ARM64 DMG" \
+            --notes-file release_notes.md \
             Codex-${{ steps.version.outputs.version }}.zip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Upload to Release
-        if: github.event_name == 'workflow_dispatch' && inputs.is_release == 'true'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: Codex-${{ steps.version.outputs.version }}.zip
-          asset_name: Codex-${{ steps.version.outputs.version }}.zip
-          asset_content_type: application/zip
