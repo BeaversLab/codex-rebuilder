@@ -1,15 +1,24 @@
 /**
  * App logic: language switching, OS detection, download link wiring.
- *
- * Load order in index.html:
- *   1. <script> const APP_VERSION = '__APP_VERSION__'; </script>  ← CI patches this
- *   2. <script src="i18n.js">                                     ← translation strings
- *   3. <script src="app.js">                                      ← this file
  */
 
-/* global APP_VERSION, i18n, lucide */
+/* global i18n, lucide */
 
-const RELEASE_URL = `https://github.com/BeaversLab/codex-rebuilder/releases/download/v${APP_VERSION}/Codex-${APP_VERSION}.zip`;
+let APP_VERSION = '26.309.31024'; // Fallback
+let RELEASE_URL = `https://github.com/BeaversLab/codex-rebuilder/releases/download/v${APP_VERSION}/Codex-${APP_VERSION}.zip`;
+
+async function loadVersion() {
+    try {
+        const response = await fetch('version.json');
+        const data = await response.json();
+        if (data.version) {
+            APP_VERSION = data.version;
+            RELEASE_URL = `https://github.com/BeaversLab/codex-rebuilder/releases/download/v${APP_VERSION}/Codex-${APP_VERSION}.zip`;
+        }
+    } catch (e) {
+        console.error('Failed to load version.json, using fallback:', e);
+    }
+}
 
 function detectLang() {
     const nav = (navigator.language || navigator.languages?.[0] || 'en').toLowerCase();
@@ -101,7 +110,8 @@ function changeLang(lang) {
     applyLang(lang);
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    await loadVersion();
     applyLang(currentLang);
     if (window.lucide) lucide.createIcons();
 });

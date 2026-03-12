@@ -108,13 +108,14 @@ jobs:
              '.version = $version | .build = $build | .checked = "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"' \
              version.json > version.json.tmp
           mv version.json.tmp version.json
+          cp version.json web/version.json
 
       - name: Commit and push (new version)
         if: (github.event_name != 'workflow_dispatch' || inputs.release_only != true) && steps.compare.outputs.new_version_found == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add version.json
+          git add version.json web/version.json
           git commit -m "[release] Update version to ${{ steps.new-version.outputs.new_version }}"
           git push
 
@@ -123,13 +124,14 @@ jobs:
         run: |
           jq --arg checked "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.checked = $checked' version.json > version.json.tmp
           mv version.json.tmp version.json
+          cp version.json web/version.json
 
       - name: Commit and push (refresh)
         if: (github.event_name != 'workflow_dispatch' || inputs.release_only != true) && steps.compare.outputs.new_version_found == 'refresh'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add version.json
+          git add version.json web/version.json
           git commit -m "Refresh version info (checked ${{ steps.current-version.outputs.version }})"
           git push
 
@@ -171,11 +173,6 @@ jobs:
           BUILD=$(jq -r '.build' version.json)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "build=$BUILD" >> $GITHUB_OUTPUT
-
-      - name: Patch version in web/index.html
-        run: |
-          VERSION=$(jq -r '.version' version.json)
-          sed -i '' "s/__APP_VERSION__/$VERSION/g" web/index.html
 
       - name: Install & Build
         run: make build
@@ -220,11 +217,3 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Commit updated web/index.html
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add web/index.html
-          git diff --cached --quiet && echo "No changes to commit" || \
-            git commit -m "[release] Update web page to v${{ steps.version.outputs.version }}"
-          git push
