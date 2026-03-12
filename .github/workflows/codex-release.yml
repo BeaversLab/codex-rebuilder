@@ -172,6 +172,11 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "build=$BUILD" >> $GITHUB_OUTPUT
 
+      - name: Patch version in web/index.html
+        run: |
+          VERSION=$(jq -r '.version' version.json)
+          sed -i '' "s/__APP_VERSION__/$VERSION/g" web/index.html
+
       - name: Install & Build
         run: make build
 
@@ -214,3 +219,12 @@ jobs:
             Codex-${{ steps.version.outputs.version }}.zip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit updated web/index.html
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add web/index.html
+          git diff --cached --quiet && echo "No changes to commit" || \
+            git commit -m "[release] Update web page to v${{ steps.version.outputs.version }}"
+          git push

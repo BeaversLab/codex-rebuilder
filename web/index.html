@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codex for Intel Mac | Native x86_64 Rebuild of OpenAI Codex</title>
+    <meta name="description" content="Download the high-performance x86_64 rebuild of the official OpenAI Codex Desktop App for Intel Macs. Optimized for performance and reliability on Intel hardware.">
+    <meta name="keywords" content="Codex, Intel Mac, OpenAI Codex, x86_64, macOS Intel, Desktop App, Rebuild, Port, AI Coding Assistant, Codex Download, OpenAI Mac, Arm64 to Intel, Codex for x86, Programming AI, LLM Desktop">
+    <link rel="canonical" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="x-default" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="en" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="zh-Hans" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="zh-Hant" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="fr" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="es" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="de" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="ja" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="ko" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="ru" href="https://codex-intel.beaverslab.xyz/">
+    <link rel="alternate" hreflang="ar" href="https://codex-intel.beaverslab.xyz/">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://codex-intel.beaverslab.xyz/">
+    <meta property="og:title" content="Codex for Intel Mac | Native x86_64 Rebuild">
+    <meta property="og:description" content="The official OpenAI Codex Desktop App, re-engineered for Intel Mac performance. Support for integrated terminal and browser automation.">
+    <meta property="og:image" content="https://codex-intel.beaverslab.xyz/og-image.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://codex-intel.beaverslab.xyz/">
+    <meta property="twitter:title" content="Codex for Intel Mac | Native x86_64 Rebuild">
+    <meta property="twitter:description" content="The official OpenAI Codex Desktop App, re-engineered for Intel Mac performance. Support for integrated terminal and browser automation.">
+    <meta property="twitter:image" content="https://codex-intel.beaverslab.xyz/og-image.png">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Codex Intel Rebuild",
+      "operatingSystem": "macOS",
+      "applicationCategory": "DeveloperApplication",
+      "description": "Native x86_64 rebuild of the official OpenAI Codex Desktop App for Intel Macs.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>❄️</text></svg>">
+    
+    <!-- Typography: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Icons: Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<div class="container">
+    <nav>
+        <a href="#" class="logo">
+            <i data-lucide="cpu" aria-hidden="true" style="width: 28px; height: 28px;"></i>
+            Codex Intel
+        </a>
+        <div class="nav-links">
+            <a href="https://github.com/BeaversLab/codex-rebuilder" target="_blank" id="nav-github">
+                <i data-lucide="github" aria-hidden="true" style="width: 18px; height: 18px;"></i>
+                <span>GitHub</span>
+            </a>
+            <div class="lang-dropdown">
+                <button class="lang-trigger" id="lang-trigger">
+                    <span id="lang-current">🇺🇸 English</span>
+                    <i data-lucide="chevron-down" aria-hidden="true" style="width: 14px; height: 14px;"></i>
+                </button>
+                <div class="lang-menu">
+                    <button onclick="changeLang('zh')">🇨🇳 简体中文</button>
+                    <button onclick="changeLang('zh-HK')">🇭🇰 繁體中文</button>
+                    <button onclick="changeLang('en')">🇺🇸 English</button>
+                    <button onclick="changeLang('fr')">🇫🇷 Français</button>
+                    <button onclick="changeLang('es')">🇪🇸 Español</button>
+                    <button onclick="changeLang('de')">🇩🇪 Deutsch</button>
+                    <button onclick="changeLang('ja')">🇯🇵 日本語</button>
+                    <button onclick="changeLang('ko')">🇰🇷 한국어</button>
+                    <button onclick="changeLang('ru')">🇷🇺 Русский</button>
+                    <button onclick="changeLang('ar')">🇸🇦 العربية</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="promo-banner" id="promo-text">
+        OpenAI Promo: Try via Free & Go tiers; other users enjoy double rate limits.
+    </div>
+
+    <section class="hero">
+        <div class="hero-badge">Architecture Port</div>
+        <h1 id="hero-title">Native Power for Intel Mac</h1>
+        <p id="hero-desc">The high-performance x86_64 rebuild of the official Codex Desktop App. Re-engineered for reliability and speed.</p>
+        
+        <div class="download-card">
+            <div class="os-info">
+                <div class="os-dot"></div>
+                <span id="detected-os">Detected: macOS (Intel)</span>
+            </div>
+            
+            <a href="https://github.com/BeaversLab/codex-rebuilder/releases/download/v26.305.950/Codex-26.305.950.zip" class="btn-main" id="main-download-btn">
+                <i data-lucide="download-cloud" aria-hidden="true"></i>
+                <span id="main-download-text">Download v26.305.950 (x64)</span>
+            </a>
+            
+            <div class="alt-platforms">
+                <a href="https://openai.com/codex" target="_blank" class="btn-sub">
+                    <i data-lucide="apple" style="width: 16px;"></i> <span id="label-apple">Apple Silicon (Official)</span>
+                </a>
+                <a href="https://openai.com/codex" target="_blank" class="btn-sub">
+                    <i data-lucide="layout-grid" style="width: 16px;"></i> <span id="label-windows">Windows (Official)</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="bento-grid">
+        <div class="bento-item large">
+            <div class="bento-icon"><i data-lucide="zap" aria-hidden="true"></i></div>
+            <h3 id="f1-title">Performance Tuned</h3>
+            <p id="f1-desc">Compiled with architecture-specific optimizations to ensure the fastest possible inference and UI response on Intel hardware.</p>
+        </div>
+        <div class="bento-item tall">
+            <div class="bento-icon"><i data-lucide="terminal" aria-hidden="true"></i></div>
+            <h3 id="f2-title">Integrated Shell</h3>
+            <p id="f2-desc">Fully functional integrated terminal with support for Playwright and other browser automation tools out of the box.</p>
+        </div>
+        <div class="bento-item">
+            <div class="bento-icon"><i data-lucide="shield" aria-hidden="true"></i></div>
+            <h3 id="f3-title">Sandboxed</h3>
+            <p id="f3-desc">Leverages macOS Seatbelt isolation for safe local development environments.</p>
+        </div>
+        <div class="bento-item">
+            <div class="bento-icon"><i data-lucide="code-2" aria-hidden="true"></i></div>
+            <h3 id="f4-title">Open Source</h3>
+            <p id="f4-desc">Build logic is fully transparent and available for community auditing on GitHub.</p>
+        </div>
+    </div>
+
+    <div class="terminal-box">
+        <div class="terminal-header">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+        </div>
+        <h3 id="trouble-title">"App is damaged?"</h3>
+        <p id="trouble-desc">As an unofficial build, you may need to clear the macOS quarantine attribute. Run the following in your shell:</p>
+        <div class="code-block">
+            <span>xattr -cr Codex.app</span>
+            <i data-lucide="copy" aria-hidden="true" style="width: 16px; cursor: pointer;"></i>
+        </div>
+    </div>
+
+    <footer>
+        <p id="footer-text">&copy; 2026 BeaversLab. Not affiliated with OpenAI. | <a href="https://openai.com" target="_blank">Official OpenAI Site</a></p>
+    </footer>
+</div>
+
+<!-- APP_VERSION is replaced by CI; the placeholder is used as-is during local dev -->
+<script>const APP_VERSION = '__APP_VERSION__' === '__APP_VERSION__' ? '26.305.950' : '__APP_VERSION__';</script>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
