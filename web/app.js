@@ -108,10 +108,24 @@ function applyLang(lang) {
 function changeLang(lang) {
     currentLang = lang;
     applyLang(lang);
+    if (window.gtag) {
+        gtag('event', 'change_language', { 'language': lang });
+    }
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
     await loadVersion();
     applyLang(currentLang);
     if (window.lucide) lucide.createIcons();
+
+    // GA Download Event
+    document.getElementById('main-download-btn')?.addEventListener('click', function() {
+        if (window.gtag) {
+            gtag('event', 'download', {
+                'event_category': 'engagement',
+                'event_label': 'Codex Intel Rebuild',
+                'version': APP_VERSION
+            });
+        }
+    });
 });
