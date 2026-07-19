@@ -51,31 +51,56 @@ jobs:
       - name: Mount DMG and copy Codex.app
         if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
         run: |
-          hdiutil attach Codex.dmg -mountpoint /tmp/codex_mount -nobrowse
-          CODEX_APP=$(find /tmp/codex_mount -maxdepth 3 -name "Codex.app" -type d 2>/dev/null | head -1)
-          if [ -z "$CODEX_APP" ]; then
-            echo "::error::Codex.app not found in DMG"
-            ls -laR /tmp/codex_mount
-            hdiutil detach /tmp/codex_mount
+          MOUNT_POINT=$(mktemp -d /tmp/codex_mount.XXXXXX)
+          echo "Using mount point: $MOUNT_POINT"
+
+          cleanup() {
+            if mount | grep "on $MOUNT_POINT " > /dev/null 2>&1; then
+              hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1 || \
+                hdiutil detach -force "$MOUNT_POINT" > /dev/null 2>&1 || true
+            fi
+            [ -d "$MOUNT_POINT" ] && rmdir "$MOUNT_POINT" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          hdiutil attach Codex.dmg -mountpoint "$MOUNT_POINT" -nobrowse
+
+          # Locate the upstream app bundle dynamically (handles Codex.app -> ChatGPT.app rename
+          # and missing CFBundleShortVersionString).
+          METADATA=$(node source_app.js "$MOUNT_POINT")
+          SOURCE_APP=$(node -pe 'JSON.parse(process.argv[1]).appPath' "$METADATA")
+          if [ -z "$SOURCE_APP" ] || [ ! -d "$SOURCE_APP" ]; then
+            echo "::error::Could not locate upstream app bundle in DMG"
+            echo "$METADATA"
+            ls -laR "$MOUNT_POINT"
             exit 1
           fi
-          cp -R "$CODEX_APP" ./
-          hdiutil detach /tmp/codex_mount
+          echo "Found upstream app: $SOURCE_APP"
+          cp -R "$SOURCE_APP" ./
 
       - name: Extract version from Info.plist
         if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
         id: new-version
         run: |
-          INFO_PLIST="Codex.app/Contents/Info.plist"
+          # Locate the copied upstream app bundle and read its marketing version.
+          # Some upstream releases omit CFBundleShortVersionString, so the
+          # helper falls back to CFBundleVersion.
+          APP_PATH=$(find . -maxdepth 1 -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::No .app bundle found after copy"
+            exit 1
+          fi
+          INFO_PLIST="$APP_PATH/Contents/Info.plist"
           if [ ! -f "$INFO_PLIST" ]; then
             echo "::error::Info.plist not found at $INFO_PLIST"
             exit 1
           fi
-          NEW_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$INFO_PLIST")
+          NEW_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$INFO_PLIST" 2>/dev/null || \
+                        /usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$INFO_PLIST")
           NEW_BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$INFO_PLIST")
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "new_build=$NEW_BUILD" >> $GITHUB_OUTPUT
-          echo "Found version: $NEW_VERSION (build $NEW_BUILD)"
+          echo "Found version: $NEW_VERSION (build $NEW_BUILD) in $APP_PATH"
 
       - name: Compare versions
         if: github.event_name != 'workflow_dispatch' || inputs.release_only != true
@@ -148,7 +173,7 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: rm -rf Codex.dmg "Codex.app" 2>/dev/null || true
+        run: rm -rf Codex.dmg *.app 2>/dev/null || true
 
   build:
     name: Build and Release
