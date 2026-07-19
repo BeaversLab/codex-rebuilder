@@ -2,10 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const os = require('os');
+const { readPlistValue, readSourceAppMetadata } = require('./source_app');
 
 // Configuration
 const REPO_ROOT = __dirname;
-const MOUNT_POINT = '/Volumes/CodexMount';
+// Dynamic mount point prevents "Resource busy" in concurrent or sequential CI runs
+const MOUNT_POINT = fs.mkdtempSync(path.join(os.tmpdir(), 'codex_mount_'));
 const DMG_PATH = path.join(REPO_ROOT, 'Codex.dmg');
 const TEMP_DIR = path.join(REPO_ROOT, 'temp_build');
 const FINAL_APP_PATH = path.join(REPO_ROOT, 'Codex_Intel.app');
@@ -58,23 +60,17 @@ async function main() {
         console.log(`Missing resources (${missingResources.join(', ')}). Mounting DMG...`);
 
         let mounted = false;
-        if (!fs.existsSync(MOUNT_POINT)) {
-            // Check if already mounted by user?
-            try {
-                // Try to mount
-                run(`hdiutil attach "${DMG_PATH}" -nobrowse -mountpoint "${MOUNT_POINT}"`);
-                mounted = true;
-            } catch (e) {
-                console.log("Mount failed or already mounted. Checking...");
-            }
-        } else {
-            console.log("Mount point exists, assuming mounted.");
+        // mkdtempSync already created MOUNT_POINT; just attach directly.
+        try {
+            run(`hdiutil attach "${DMG_PATH}" -nobrowse -mountpoint "${MOUNT_POINT}"`);
             mounted = true;
-            // If strictly it's just a folder, we might fail, but let's assume valid mount or previous run leftover
+        } catch (e) {
+            console.log("Mount failed or already mounted. Checking...");
         }
 
         try {
-            const appPath = path.join(MOUNT_POINT, 'Codex.app/Contents');
+            // Locate the upstream app bundle dynamically (handles Codex.app -> ChatGPT.app rename)
+            const { contentsPath: appPath } = readSourceAppMetadata(MOUNT_POINT);
             const resPath = path.join(appPath, 'Resources');
 
             if (fs.existsSync(path.join(resPath, 'app.asar'))) {
@@ -106,13 +102,19 @@ async function main() {
                     }
                 }
             } else {
-                throw new Error("Could not find Codex.app/Contents/Resources/app.asar in DMG");
+                throw new Error("Could not find an upstream app bundle containing Resources/app.asar in DMG");
             }
         } finally {
             if (mounted) {
-                // Try to detach, don't fail if busy
+                // Try to detach; only remove the directory after successful detach
+                // to avoid masking a still-mounted volume if detach fails
                 try {
-                    run(`hdiutil detach "${MOUNT_POINT}"`);
+                    run(`hdiutil detach -force "${MOUNT_POINT}"`);
+                    try {
+                        fs.rmSync(MOUNT_POINT, { recursive: true, force: true });
+                    } catch (e) {
+                        console.warn("Failed to cleanup temp mount point:", e);
+                    }
                 } catch (e) {
                     console.warn("Failed to unmount, ignoring.");
                 }
@@ -276,18 +278,19 @@ async function main() {
     }
 
     const macOsDir = path.join(targetApp, 'Contents/MacOS');
+    const appExecutable = readPlistValue(localInfoPlist, 'CFBundleExecutable') || 'Codex';
     const electronBin = path.join(macOsDir, 'Electron');
-    const codexOrigBin = path.join(macOsDir, 'Codex.orig');
-    const codexWrapper = path.join(macOsDir, 'Codex');
+    const codexOrigBin = path.join(macOsDir, `${appExecutable}.orig`);
+    const codexWrapper = path.join(macOsDir, appExecutable);
 
     if (fs.existsSync(electronBin)) {
-        // Rename the real binary to Codex.orig
+        // Rename the real binary to match the upstream app's executable name.
         fs.renameSync(electronBin, codexOrigBin);
 
         // Create a wrapper script that launches with --no-sandbox
         const wrapperScript = `#!/bin/bash
 DIR="$(cd "$(dirname "$0")" && pwd)"
-exec "$DIR/Codex.orig" --no-sandbox "$@"
+exec "$DIR/${appExecutable}.orig" --no-sandbox "$@"
 `;
         fs.writeFileSync(codexWrapper, wrapperScript);
         fs.chmodSync(codexWrapper, '755');
@@ -351,7 +354,7 @@ exec "$DIR/Codex.orig" --no-sandbox "$@"
         }
 
     } else {
-        console.warn(`WARNING: Could not find local x64 Codex binary. Checked: ${potentialCodexPaths.join(', ')}`);
+        console.warn(`WARNING: Could not find local x64 Codex binary under ${CODEX_CLI_PATH}`);
     }
 
     // 8. Fix Timestamps
