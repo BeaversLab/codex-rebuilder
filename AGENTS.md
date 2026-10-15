@@ -20,7 +20,10 @@ bash scripts/test_cask.sh Casks/codex-intel.rb Codex.app  # Custom cask/app
 
 - `scripts/build.sh` - orchestration script (downloads DMG, runs rebuild)
 - `scripts/rebuild_codex.js` - core logic: extracts app.asar, downloads Electron x64, swaps native modules (better-sqlite3, node-pty), creates `--no-sandbox` wrapper
+- `scripts/source_app.js` - locates the upstream app bundle in a mounted DMG (handles bundle renames like Codex.app → ChatGPT.app)
+- `scripts/test_cask.sh` - cask audit/install/uninstall verification
 - `Casks/codex-intel.rb` - Homebrew cask definition (version + sha256 updated by CI)
+- `web/` - distribution landing page assets
 - DMG source: `https://persistent.oaistatic.com/codex-app-prod/Codex.dmg`
 - Electron download: `https://github.com/electron/electron/releases/download/v{version}/electron-v{version}-darwin-x64.zip`
 
@@ -46,3 +49,5 @@ bash scripts/test_cask.sh Casks/codex-intel.rb Codex.app  # Custom cask/app
 - Native modules (better-sqlite3, node-pty) are rebuilt for Electron's x64 runtime using `CXXFLAGS='-std=c++20 -stdlib=libc++'`
 - If macOS flags the app after install: `xattr -cr /Applications/Codex.app`
 - Build artifacts are gitignored; CI re-downloads Electron zip per release version
+- To enable network access inside the Codex terminal (macOS Seatbelt sandbox), set `network_access = true` under `[sandbox_workspace_write]` in Codex `config.toml`
+- Unofficial project, not affiliated with OpenAI
