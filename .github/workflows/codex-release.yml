@@ -72,7 +72,7 @@ jobs:
 
           # Locate the upstream app bundle dynamically (handles Codex.app -> ChatGPT.app rename
           # and missing CFBundleShortVersionString).
-          METADATA=$(node source_app.js "$MOUNT_POINT")
+          METADATA=$(node scripts/source_app.js "$MOUNT_POINT")
           SOURCE_APP=$(node -pe 'JSON.parse(process.argv[1]).appPath' "$METADATA")
           if [ -z "$SOURCE_APP" ] || [ ! -d "$SOURCE_APP" ]; then
             echo "::error::Could not locate upstream app bundle in DMG"
