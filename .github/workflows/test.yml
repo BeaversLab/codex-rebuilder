@@ -1,0 +1,40 @@
+name: Test Homebrew Cask
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  test-cask:
+    name: Test Homebrew Cask
+    runs-on: macos-15-intel
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Cache Homebrew Bundler RubyGems
+        id: cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.set-up-homebrew.outputs.gems-path }}
+          key: ${{ runner.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
+          restore-keys: ${{ runner.os }}-rubygems-
+      
+      - name: Install Homebrew Bundler RubyGems
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: brew install-bundler-gems
+
+      - name: Run Cask tests
+        run: bash scripts/test_cask.sh

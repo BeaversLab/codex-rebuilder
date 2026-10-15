@@ -2,7 +2,7 @@
 
 # Default target: Build the app
 build:
-	bash build.sh
+	bash scripts/build.sh
 
 # Clean up build artifacts and downloads
 clean:

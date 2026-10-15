@@ -8,7 +8,8 @@ This project provides an **automated build pipeline** and a **distribution landi
 
 - **Automation**: A GitHub Action pipeline that monitors official OpenAI releases, triggers a rebuild, and creates new GitHub Releases automatically.
 - **Distribution**: A multi-language landing page for easy discovery and downloading of the x86_64 binaries.
-- **Core Tool**: The underlying reconstruction logic (`rebuild_codex.js`, etc.) is based on the [soham2008xyz/codex-rebuilder](https://github.com/soham2008xyz/codex-rebuilder) tool.
+- **Homebrew Tap**: An unofficial Homebrew cask (`codex-intel`) for installing and upgrading the Intel build.
+- **Core Tool**: The underlying reconstruction logic (`scripts/rebuild_codex.js`, etc.) is based on the [soham2008xyz/codex-rebuilder](https://github.com/soham2008xyz/codex-rebuilder) tool.
 
 ---
 
@@ -21,6 +22,36 @@ The core logic of this project allows you to port the official Arm64 (Apple Sili
 - **Architecture Porting**: Transforms the official Arm64 `.dmg` into a native x86_64 `.app`.
 - **Native Module Rebuild**: Automatically recompiles `better-sqlite3` and `node-pty` for Intel Macs.
 - **Integrated Tooling**: Includes a wrapper to support Playwright and other browser automation tools.
+
+## Homebrew Tap Usage
+
+```bash
+brew tap soham2008xyz/codex-intel https://github.com/soham2008xyz/codex-intel
+brew install --cask codex-intel
+```
+
+Notes:
+
+- The cask installs `Codex.app`.
+- The cask conflicts with the official `codex` cask, so uninstall that first if needed.
+
+Upgrade to the latest converted release:
+
+```bash
+brew upgrade --cask codex-intel
+```
+
+Remove the app:
+
+```bash
+brew uninstall --cask codex-intel
+```
+
+Remove the tap when you no longer need it:
+
+```bash
+brew untap soham2008xyz/codex-intel
+```
 
 ## Prerequisites (for local builds)
 
@@ -46,13 +77,39 @@ make install
 make clean
 ```
 
-The build process (`build.sh` / `rebuild_codex.js`) will:
+The build process (`scripts/build.sh` / `scripts/rebuild_codex.js`) will:
 1.  Download the latest official `Codex.dmg` from OpenAI.
 2.  Extract the app logic (`app.asar`), icons, and configuration.
 3.  Download the compatible x64 Electron runtime.
 4.  Rebuild native modules for the Intel architecture.
 5.  Inject the x64 `codex` binary from your global installation.
 6.  Generate and fix permissions for `Codex.app`.
+
+## How The Automation Works
+
+[`schedule.yml`](.github/workflows/schedule.yml) runs every 6 hours and also supports manual dispatch. The workflow:
+
+- downloads the latest upstream `Codex.dmg`
+- extracts the app version from `Info.plist`
+- skips work if the matching `-intel` release already exists
+- builds the Intel app with `make build`
+- uploads `Codex-Intel.zip` to a GitHub release
+- updates the cask version and SHA256 on the default branch
+
+[`test.yml`](.github/workflows/test.yml) validates the tap on Intel macOS by:
+
+- checking out the repository
+- setting up Homebrew
+- auditing the cask
+- installing and uninstalling it via [`scripts/test_cask.sh`](scripts/test_cask.sh)
+
+## Repository Layout
+
+- [`Casks/codex-intel.rb`](Casks/codex-intel.rb): Homebrew cask definition
+- [`scripts/build.sh`](scripts/build.sh): Intel rebuild pipeline used by CI
+- [`scripts/rebuild_codex.js`](scripts/rebuild_codex.js): core repackaging logic
+- [`scripts/test_cask.sh`](scripts/test_cask.sh): local and CI cask verification
+- [`Makefile`](Makefile): build entrypoint used by the scheduled workflow
 
 ## Security & Terminal Usage
 

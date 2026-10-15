@@ -36,7 +36,7 @@ if [ -f "package.json" ]; then
     npm install
 fi
 
-node rebuild_codex.js
+node "$(dirname "$0")/rebuild_codex.js"
 
 # 5. Fix permissions
 if [ -d "Codex_Intel.app" ]; then

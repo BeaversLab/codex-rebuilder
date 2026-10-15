@@ -46,7 +46,7 @@ function readSourceAppMetadata(mountPoint) {
 if (require.main === module) {
     const mountPoint = process.argv[2];
     if (!mountPoint) {
-        console.error('Usage: node source_app.js <mounted-dmg-path>');
+        console.error('Usage: node scripts/source_app.js <mounted-dmg-path>');
         process.exit(1);
     }
 

@@ -5,9 +5,14 @@ const os = require('os');
 const { readPlistValue, readSourceAppMetadata } = require('./source_app');
 
 // Configuration
-const REPO_ROOT = __dirname;
-// Dynamic mount point prevents "Resource busy" in concurrent or sequential CI runs
-const MOUNT_POINT = fs.mkdtempSync(path.join(os.tmpdir(), 'codex_mount_'));
+const REPO_ROOT = path.join(__dirname, "..");
+const MOUNT_POINT = path.join(
+    os.tmpdir(),
+    'codex_mount_' +
+        Date.now().toString(36) +
+        '_' +
+        Math.random().toString(36).slice(2)
+);
 const DMG_PATH = path.join(REPO_ROOT, 'Codex.dmg');
 const TEMP_DIR = path.join(REPO_ROOT, 'temp_build');
 const FINAL_APP_PATH = path.join(REPO_ROOT, 'Codex_Intel.app');
@@ -40,6 +45,30 @@ function run(cmd, cwd = REPO_ROOT) {
 }
 
 async function main() {
+    // Handle --clean flag
+    const cleanBuild = process.argv.includes('--clean');
+    if (cleanBuild) {
+        console.log("Clean build requested. Removing cached/transient files...");
+        const toRemove = [
+            RESOURCES_DIR,
+            TEMP_DIR,
+            path.join(REPO_ROOT, 'native_build_temp'),
+            FINAL_APP_PATH,
+            path.join(REPO_ROOT, 'package.json'),
+        ];
+        // Also remove any cached electron zips
+        const electronZips = fs.readdirSync(REPO_ROOT).filter(f => f.startsWith('electron-') && f.endsWith('.zip'));
+        electronZips.forEach(f => toRemove.push(path.join(REPO_ROOT, f)));
+
+        for (const p of toRemove) {
+            if (fs.existsSync(p)) {
+                console.log(`  Removing ${path.basename(p)}`);
+                fs.rmSync(p, { recursive: true, force: true });
+            }
+        }
+        console.log("Clean complete.\n");
+    }
+
     console.log("Starting Codex Rebuilder...");
 
     // 1. Prepare Resources (Mount DMG if needed)
@@ -60,16 +89,21 @@ async function main() {
         console.log(`Missing resources (${missingResources.join(', ')}). Mounting DMG...`);
 
         let mounted = false;
-        // mkdtempSync already created MOUNT_POINT; just attach directly.
+        // Create mount directory lazily, right before attaching
         try {
+            fs.mkdirSync(MOUNT_POINT);
+            // Try to mount
             run(`hdiutil attach "${DMG_PATH}" -nobrowse -mountpoint "${MOUNT_POINT}"`);
             mounted = true;
         } catch (e) {
             console.log("Mount failed or already mounted. Checking...");
+            // Clean up the empty directory if mount failed
+            if (fs.existsSync(MOUNT_POINT)) {
+                try { fs.rmSync(MOUNT_POINT, { recursive: true, force: true }); } catch (_) {}
+            }
         }
 
         try {
-            // Locate the upstream app bundle dynamically (handles Codex.app -> ChatGPT.app rename)
             const { contentsPath: appPath } = readSourceAppMetadata(MOUNT_POINT);
             const resPath = path.join(appPath, 'Resources');
 
@@ -109,7 +143,7 @@ async function main() {
                 // Try to detach; only remove the directory after successful detach
                 // to avoid masking a still-mounted volume if detach fails
                 try {
-                    run(`hdiutil detach -force "${MOUNT_POINT}"`);
+                    execSync(`hdiutil detach -force "${MOUNT_POINT}"`);
                     try {
                         fs.rmSync(MOUNT_POINT, { recursive: true, force: true });
                     } catch (e) {
@@ -371,6 +405,19 @@ exec "$DIR/${appExecutable}.orig" --no-sandbox "$@"
         execSync(`SetFile -d "${dateStr}" "${targetApp}"`, { stdio: 'inherit' });
     } catch (e) {
         console.warn("SetFile failed or not available (this is normal on non-macOS or minimal envs). Creation date might be old.");
+    }
+
+    // 9. Cleanup temp files
+    console.log("Cleaning up temporary files...");
+    for (const dir of [TEMP_DIR, tempBuildDir]) {
+        if (fs.existsSync(dir)) {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    }
+    // Remove extracted package.json
+    const extractedPkgJson = path.join(REPO_ROOT, 'package.json');
+    if (fs.existsSync(extractedPkgJson)) {
+        fs.unlinkSync(extractedPkgJson);
     }
 
     console.log("Done! Codex_Intel.app is ready at " + targetApp);

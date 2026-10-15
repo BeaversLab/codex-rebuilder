@@ -1,0 +1,137 @@
+name: Scheduled Build Codex App (Intel)
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Run every 6 hours
+  workflow_dispatch: # Allow manual triggering
+
+# Prevent concurrent runs to avoid race conditions when checking/creating releases
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # Required for creating releases
+
+jobs:
+  build-and-release:
+    name: Check, Build, and Release
+    runs-on: macos-15-intel # Use Intel-based macOS 15 runner to match main CI
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Download Codex.dmg
+        run: |
+          curl -fL -o Codex.dmg "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg"
+
+      - name: Extract Version
+        id: extract_version
+        run: |
+          # Create a unique temporary mountpoint for the DMG
+          MOUNT_POINT=$(mktemp -d /tmp/codex_mount.XXXXXX)
+          echo "Using mount point: $MOUNT_POINT"
+
+          cleanup() {
+            # Always attempt to detach – avoids the /tmp -> /private/tmp symlink
+            # mismatch on macOS that makes "mount | grep" miss the mounted volume.
+            echo "Detaching DMG from $MOUNT_POINT..."
+            hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1 || \
+              hdiutil detach -force "$MOUNT_POINT" > /dev/null 2>&1 || true
+            # Remove the temporary mountpoint directory if it still exists
+            if [ -d "$MOUNT_POINT" ]; then
+              rmdir "$MOUNT_POINT" 2>/dev/null || true
+            fi
+          }
+
+          # Ensure cleanup runs on all exit paths
+          trap cleanup EXIT
+
+          # Mount the DMG
+          hdiutil attach Codex.dmg -nobrowse -mountpoint "$MOUNT_POINT"
+
+          # Locate the upstream app bundle and read its marketing version.
+          # Some upstream releases omit CFBundleShortVersionString, so the
+          # helper falls back to CFBundleVersion.
+          METADATA=$(node scripts/source_app.js "$MOUNT_POINT")
+          VERSION=$(node -pe 'JSON.parse(process.argv[1]).version' "$METADATA")
+          echo "Extracted version: $VERSION"
+          # Save the version to output
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check for Existing Release
+        id: check_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.extract_version.outputs.version }}
+        run: |
+          # Per user requirement: check if the same tag already exists in the repo
+          # The tag should be "<version>-intel" without the 'v' prefix if the original doesn't have it,
+          # but usually we want to just append '-intel' to the extracted version.
+          # For example, if version is 1.2.3, tag is 1.2.3-intel
+          TAG="${VERSION}-intel"
+          echo "Checking if release $TAG already exists..."
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists. Skipping build."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Release $TAG does not exist. Proceeding with build."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build Intel App
+        if: steps.check_release.outputs.exists != 'true'
+        run: make build
+
+      - name: Zip the App
+        if: steps.check_release.outputs.exists != 'true'
+        run: |
+          # The make build output is Codex.app
+          # Use ditto to preserve macOS app bundle structure and symlinks
+          ditto -c -k --keepParent Codex.app Codex-Intel.zip
+
+      - name: Create Release and Upload
+        if: steps.check_release.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.extract_version.outputs.version }}
+        run: |
+          TAG="${VERSION}-intel"
+          TITLE="Codex Intel Port ${VERSION}"
+
+          # Re-check if the release was created by a concurrent run that completed
+          # between our earlier check and now, to keep this step idempotent.
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG was created by a concurrent run. Skipping."
+            exit 0
+          fi
+
+          echo "Creating release $TAG..."
+          gh release create "$TAG" Codex-Intel.zip \
+            --title "$TITLE" \
+            --notes "Intel (x64) build of Codex app version $VERSION."
+
+      - name: Update Cask
+        if: steps.check_release.outputs.exists != 'true' && github.ref_name == github.event.repository.default_branch
+        env:
+          VERSION: ${{ steps.extract_version.outputs.version }}
+        run: |
+          # Calculate the SHA256 of the new zip file
+          SHA256=$(shasum -a 256 Codex-Intel.zip | awk '{ print $1 }')
+
+          # Update the cask file
+          sed -i '' -e "s/version \".*\"/version \"$VERSION\"/" Casks/codex-intel.rb
+          sed -i '' -e "s/sha256 \".*\"/sha256 \"$SHA256\"/" Casks/codex-intel.rb
+
+          # Commit the changes
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/codex-intel.rb
+          git commit -m "chore: update cask for ${VERSION}" || echo "No changes to commit"
+          git push origin HEAD:${{ github.event.repository.default_branch }}

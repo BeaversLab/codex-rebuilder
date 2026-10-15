@@ -4,7 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { readSourceAppMetadata } = require('../source_app');
+const { readSourceAppMetadata } = require('../scripts/source_app');
 
 function writeSourceApp(mountPoint, appName, plist) {
     const contents = path.join(mountPoint, appName, 'Contents');
