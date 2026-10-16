@@ -4,16 +4,17 @@
 
 /* global i18n, lucide */
 
-let APP_VERSION = '26.309.31024'; // Fallback
-let RELEASE_URL = `https://github.com/BeaversLab/codex-rebuilder/releases/download/v${APP_VERSION}/Codex-${APP_VERSION}.zip`;
+const OFFICIAL_DOWNLOAD_URL = 'https://chatgpt.com/download/';
+let APP_VERSION = '26.309.31024'; // Fallback for the page copy
 
 async function loadVersion() {
     try {
         const response = await fetch('version.json');
         const data = await response.json();
         if (data.version) {
+            // Keep loading the version for the page copy, even though downloads
+            // now go directly to OpenAI's official installer.
             APP_VERSION = data.version;
-            RELEASE_URL = `https://github.com/BeaversLab/codex-rebuilder/releases/download/v${APP_VERSION}/Codex-${APP_VERSION}.zip`;
         }
     } catch (e) {
         console.error('Failed to load version.json, using fallback:', e);
@@ -94,10 +95,10 @@ function applyLang(lang) {
     const mainBtnText = document.getElementById('main-download-text');
     if (mainBtn && mainBtnText) {
         if (os === 'macOS') {
-            mainBtn.href = RELEASE_URL;
+            mainBtn.href = OFFICIAL_DOWNLOAD_URL;
             mainBtnText.innerText = t['main-download-text'];
         } else {
-            mainBtn.href = 'https://openai.com/codex';
+            mainBtn.href = OFFICIAL_DOWNLOAD_URL;
             mainBtnText.innerText = os === 'Windows' ? t['download-windows'] : t['download-other'];
         }
     }

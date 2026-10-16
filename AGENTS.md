@@ -37,11 +37,7 @@ bash scripts/test_cask.sh Casks/codex-intel.rb Codex.app  # Custom cask/app
 
 ## CI Workflows
 
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `schedule.yml` | Every 6h / manual | Checks for new upstream release, builds if needed, creates GitHub release + updates cask |
-| `build.yml` | Push to main/master, PR | Verifies build succeeds on Intel runner |
-| `test.yml` | Push to master, PR | Validates cask install/uninstall via Homebrew |
+The scheduled Intel rebuild and release workflows have been retired because OpenAI now provides an official Intel-compatible installer. `test.yml` remains for validating the retained Homebrew cask.
 
 ## Quirks
 

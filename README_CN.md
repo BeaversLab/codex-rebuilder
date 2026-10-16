@@ -1,20 +1,21 @@
-# Codex Intel Rebuilder - 自动化打包与分发站点
+# Codex Intel Rebuilder - Intel 版本历史重构工具
 
-本项目为 OpenAI Codex 桌面应用的 Intel Mac 版本提供 **自动化构建流水线** 和 **分发下载站点**。它旨在确保 Intel Mac 用户能够轻松、及时地获取到 Codex 的最新版本。
+本项目记录了 OpenAI Codex 桌面应用早期的 Intel Mac 重构流程。
+
+OpenAI 现在已经提供官方的 Intel 兼容 macOS 安装包。Intel Mac 用户应前往 [OpenAI 官方下载页面](https://chatgpt.com/download/)，页面会自动识别 Mac 芯片架构并提供对应的安装包。
 
 **下载站点:** [codex-intel.beaverslab.xyz](https://codex-intel.beaverslab.xyz/)
 
 ## 项目定位
 
-- **自动化**: 通过 GitHub Actions 监控 OpenAI 的官方发布，自动触发重构流程并发布新的 GitHub Release。
-- **分发**: 提供多语言的落地页，方便用户发现和下载适用于 x86_64 架构的安装包。
-- **核心工具**: 本项目集成的核心重构逻辑（`rebuild_codex.js` 等）基于 [soham2008xyz/codex-rebuilder](https://github.com/soham2008xyz/codex-rebuilder) 开发。
+- **官方下载**: OpenAI 官方下载页面现在直接提供 Intel 兼容安装包。
+- **历史工具**: 重构脚本和 Homebrew cask 保留作为参考。
 
 ---
 
 # 核心重构工具说明 (原 Rebuilder)
 
-本项目底层使用的核心逻辑可以将官方的 Arm64 (Apple Silicon) 版本 Codex 桌面应用移植到 Intel Mac 上运行。它通过自动提取应用逻辑、替换 Electron 运行时，并针对 x86_64 架构重新编译原生依赖来实现这一过程。
+本项目底层使用的核心逻辑曾将官方 Arm64 (Apple Silicon) 版本 Codex 桌面应用移植到 Intel Mac 上运行，通过提取应用逻辑、替换 Electron 运行时，并针对 x86_64 架构重新编译原生依赖来实现。由于 OpenAI 已提供官方 Intel 兼容下载，普通安装已不再需要此重构方案。
 
 ## 功能特性
 
@@ -33,7 +34,7 @@
 
 ## 如何本地构建
 
-虽然本项目主要在 CI 环境下运行，但你也可以手动使用 `Makefile` 进行构建：
+虽然官方安装包已经支持 Intel Mac，但你仍可以手动使用 `Makefile` 重现历史构建流程：
 
 ```bash
 # 构建应用
@@ -53,6 +54,14 @@ make clean
 4.  针对 Intel 架构重新编译原生模块。
 5.  从全局安装的 CLI 中注入 x64 `codex` 二进制文件。
 6.  生成并修复 `Codex.app` 的权限。
+
+## 仓库检查
+
+由于官方已经提供 Intel 安装包，原先定时构建和发布的 workflow 已停用。 [`test.yml`](.github/workflows/test.yml) 仍用于验证保留的 Homebrew cask：
+
+- 检查仓库
+- 设置 Homebrew
+- 审计、安装并卸载 cask
 
 ## 安全与终端使用注意事项
 
@@ -78,7 +87,7 @@ network_access = true
 
 ## 致谢
 
-本项目重构机制源自 **[soham2008xyz/codex-rebuilder](https://github.com/soham2008xyz/codex-rebuilder)** 的贡献。我们在此基础上扩展了自动化 CI/CD 工作流和 Web 分发平台。
+本项目重构机制源自 **[soham2008xyz/codex-rebuilder](https://github.com/soham2008xyz/codex-rebuilder)** 的贡献。现在官方已经支持 Intel Mac，仓库中的重构脚本和网页仅作为历史参考保留。
 
 ---
 

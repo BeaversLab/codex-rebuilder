@@ -29,21 +29,21 @@ This repo repackages the Apple Silicon-only Codex.app into an Intel (x86_64) bui
    - Creates a `--no-sandbox` wrapper: the real Electron binary is renamed to `Codex.orig`; a shell script named `Codex` launches it with `--no-sandbox "$@"`.
    - Copies the x86_64 `codex` and `rg` binaries from the globally-installed `@openai/codex` npm package into `Contents/Resources/` and `Contents/Resources/bin/`.
 
-3. **`Casks/codex-intel.rb`** — Homebrew cask pointing to GitHub releases. `version` and `sha256` are updated automatically by `schedule.yml`; do not edit manually unless CI automation fails.
+3. **`Casks/codex-intel.rb`** — Historical Homebrew cask pointing to GitHub releases. The scheduled cask update workflow has been retired.
 
 ## Key Conventions
 
-- **Build output name**: `rebuild_codex.js` produces `Codex_Intel.app`; `build.sh` renames it to `Codex.app`. Makefile targets and CI expect `Codex.app` as the final artifact.
+- **Build output name**: `rebuild_codex.js` produces `Codex_Intel.app`; `build.sh` renames it to `Codex.app`. Makefile targets and the retained cask test expect `Codex.app` as the final artifact.
 
 - **Resource caching**: The `resources/` directory persists between builds. Deleting it (or running `make clean`) forces a fresh DMG mount on next build. Likewise, `electron-*.zip` files are cached in the repo root and reused if the version matches.
 
 - **Native module build flags**: `better-sqlite3` and `node-pty` must be compiled with `CXXFLAGS='-std=c++20 -stdlib=libc++'` for Electron 40+ compatibility. This is hardcoded in `rebuild_codex.js`.
 
-- **CI runner**: All three workflows target `macos-15-intel` — an Intel macOS runner is required because native modules must compile for x64.
+- **CI runner**: The retained cask test targets `macos-15-intel`; an Intel macOS runner is required for validating the x64 app.
 
-- **Release tag format**: `{version}-intel` (e.g., `26.325.31654-intel`). The schedule workflow skips the build if this tag already exists.
+- **Release tag format**: Historical releases used `{version}-intel` (e.g., `26.325.31654-intel`). No new releases are scheduled.
 
-- **Cask update automation**: `schedule.yml` runs every 6 hours, builds only if a new upstream version is detected, creates a GitHub release with `Codex-Intel.zip`, and commits an updated `Casks/codex-intel.rb` back to the default branch via `git push`.
+- **Cask update automation**: Retired because OpenAI now provides an official Intel-compatible installer.
 
 - **Quarantine fix**: After local install, `xattr -cr /Applications/Codex.app` clears macOS quarantine if the app is blocked from launching.
 

@@ -1,21 +1,22 @@
-# Codex Intel Rebuilder - Automation & Distribution
+# Codex Intel Rebuilder - Historical Intel Port
 
-This project provides an **automated build pipeline** and a **distribution landing page** for the Intel Mac version of the official OpenAI Codex Desktop App. It ensures that Intel Mac users can always access the latest version of Codex with ease.
+This project documents the former Intel Mac rebuild pipeline for the OpenAI Codex Desktop App.
+
+OpenAI now provides an official Intel-compatible macOS installer. Intel Mac users should download Codex from the [official OpenAI download page](https://chatgpt.com/download/), which detects the Mac architecture and provides the appropriate installer.
 
 **Download Site:** [codex-intel.beaverslab.xyz](https://codex-intel.beaverslab.xyz/)
 
 ## Project Scope
 
-- **Automation**: A GitHub Action pipeline that monitors official OpenAI releases, triggers a rebuild, and creates new GitHub Releases automatically.
-- **Distribution**: A multi-language landing page for easy discovery and downloading of the x86_64 binaries.
-- **Homebrew Tap**: An unofficial Homebrew cask (`codex-intel`) for installing and upgrading the Intel build.
+- **Official download**: OpenAI's download page now provides an Intel-compatible installer directly.
+- **Archive**: The rebuild scripts and Homebrew cask are retained for reference.
 - **Core Tool**: The underlying reconstruction logic (`scripts/rebuild_codex.js`, etc.) is based on the [soham2008xyz/codex-rebuilder](https://github.com/soham2008xyz/codex-rebuilder) tool.
 
 ---
 
 # Underlying Rebuilder Tool (Details)
 
-The core logic of this project allows you to port the official Arm64 (Apple Silicon) Codex Desktop App to run on Intel Macs by extracting application logic, replacing the Electron runtime, and rebuilding native dependencies.
+The core logic of this project allowed the official Arm64 (Apple Silicon) Codex Desktop App to run on Intel Macs by extracting application logic, replacing the Electron runtime, and rebuilding native dependencies. This workaround is no longer needed for normal installation because OpenAI provides an official Intel-compatible download.
 
 ## Features
 
@@ -85,18 +86,9 @@ The build process (`scripts/build.sh` / `scripts/rebuild_codex.js`) will:
 5.  Inject the x64 `codex` binary from your global installation.
 6.  Generate and fix permissions for `Codex.app`.
 
-## How The Automation Works
+## Repository Checks
 
-[`schedule.yml`](.github/workflows/schedule.yml) runs every 6 hours and also supports manual dispatch. The workflow:
-
-- downloads the latest upstream `Codex.dmg`
-- extracts the app version from `Info.plist`
-- skips work if the matching `-intel` release already exists
-- builds the Intel app with `make build`
-- uploads `Codex-Intel.zip` to a GitHub release
-- updates the cask version and SHA256 on the default branch
-
-[`test.yml`](.github/workflows/test.yml) validates the tap on Intel macOS by:
+The former scheduled build and release workflows have been retired now that an official Intel installer is available. [`test.yml`](.github/workflows/test.yml) remains as a validation workflow for the retained Homebrew cask:
 
 - checking out the repository
 - setting up Homebrew
@@ -106,10 +98,10 @@ The build process (`scripts/build.sh` / `scripts/rebuild_codex.js`) will:
 ## Repository Layout
 
 - [`Casks/codex-intel.rb`](Casks/codex-intel.rb): Homebrew cask definition
-- [`scripts/build.sh`](scripts/build.sh): Intel rebuild pipeline used by CI
+- [`scripts/build.sh`](scripts/build.sh): Intel rebuild pipeline retained for reference
 - [`scripts/rebuild_codex.js`](scripts/rebuild_codex.js): core repackaging logic
 - [`scripts/test_cask.sh`](scripts/test_cask.sh): local and CI cask verification
-- [`Makefile`](Makefile): build entrypoint used by the scheduled workflow
+- [`Makefile`](Makefile): build entrypoint for the retained historical rebuild
 
 ## Security & Terminal Usage
 
@@ -135,7 +127,7 @@ network_access = true
 
 ## Credits
 
-The rebuilding mechanism of this project is built upon the work of **[soham2008xyz/codex-rebuilder](https://github.com/soham2008xyz/codex-rebuilder)**. We have extended it with automated CI/CD workflows and a web-based distribution platform.
+The rebuilding mechanism of this project is built upon the work of **[soham2008xyz/codex-rebuilder](https://github.com/soham2008xyz/codex-rebuilder)**. The historical rebuild scripts and web page are retained for reference now that the official download supports Intel Macs.
 
 ---
 
